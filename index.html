@@ -1,0 +1,2219 @@
+# Now I have all the info I need. Let me build the complete corrected HTML file from scratch.
+# The key changes:
+# 1. Strophe-by-strophe analysis (each card analyzes exactly one strophe)
+# 2. Remove standalone letter icons from headings
+# 3. Bidirectional hover highlighting
+# 4. Use only ES5-compatible JavaScript (no arrow functions, template literals, forEach)
+# 5. Fix nav clickability
+
+html = '''<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gottfried Keller – Leben, Schaffen & Lyrik</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --gold: #c9a84c;
+            --dark: #1a1a2e;
+            --cream: #f5f0e8;
+            --warm: #2d2d44;
+            --accent: #8b7355;
+            --text: #333344;
+            --highlight: #fff3cd;
+            --card-bg: #ffffff;
+            --success: #4caf50;
+            --danger: #e53935;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Source Sans Pro', sans-serif;
+            background: var(--cream);
+            color: var(--text);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* NAVIGATION */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(26, 26, 46, 0.97);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+        }
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 70px;
+            gap: 5px;
+        }
+        .nav-link {
+            color: var(--cream);
+            text-decoration: none;
+            padding: 12px 28px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+            position: relative;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-family: 'Source Sans Pro', sans-serif;
+            border-radius: 6px;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: var(--gold);
+            background: rgba(201, 168, 76, 0.15);
+        }
+        .nav-link.active { box-shadow: 0 0 15px rgba(201, 168, 76, 0.3); }
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: 6px;
+            left: 50%;
+            width: 0;
+            height: 3px;
+            background: var(--gold);
+            transition: all 0.3s ease;
+            transform: translateX(-50%);
+        }
+        .nav-link:hover::after, .nav-link.active::after { width: 50%; }
+
+        /* SECTIONS */
+        .section {
+            display: none;
+            min-height: 100vh;
+            padding-top: 70px;
+        }
+        .section.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* HERO */
+        .hero {
+            position: relative;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--dark) 0%, var(--warm) 100%);
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80') center/cover;
+            opacity: 0.12;
+        }
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            color: var(--cream);
+            max-width: 900px;
+            padding: 2rem;
+        }
+        .hero h1 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: clamp(3rem, 7vw, 6rem);
+            font-weight: 700;
+            margin-bottom: 1rem;
+            letter-spacing: 4px;
+            text-shadow: 3px 3px 15px rgba(0,0,0,0.6);
+        }
+        .hero-subtitle {
+            font-size: 1.5rem;
+            font-weight: 300;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 2rem;
+        }
+        .hero-quote {
+            font-family: 'Cormorant Garamond', serif;
+            font-style: italic;
+            font-size: 1.6rem;
+            opacity: 0.95;
+            max-width: 700px;
+            margin: 0 auto 3rem;
+            line-height: 1.8;
+        }
+        .hero-info {
+            font-size: 1.1rem;
+            opacity: 0.8;
+            margin-top: 1rem;
+        }
+        .scroll-indicator {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: bounce 2s infinite;
+            color: var(--gold);
+            font-size: 2.5rem;
+            cursor: pointer;
+        }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateX(-50%) translateY(0); }
+            40% { transform: translateX(-50%) translateY(-15px); }
+            60% { transform: translateX(-50%) translateY(-7px); }
+        }
+
+        /* GLIEDERUNG */
+        .gliederung-section {
+            background: linear-gradient(180deg, var(--cream) 0%, #e8e0d4 100%);
+            min-height: 100vh;
+            padding: 5rem 2rem;
+        }
+        .gliederung-container { max-width: 1000px; margin: 0 auto; }
+        .gliederung-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            text-align: center;
+            color: var(--dark);
+            margin-bottom: 3rem;
+            position: relative;
+        }
+        .gliederung-title::after {
+            content: '';
+            display: block;
+            width: 100px;
+            height: 4px;
+            background: var(--gold);
+            margin: 1rem auto 0;
+            border-radius: 2px;
+        }
+        .gliederung-list { list-style: none; padding: 0; }
+        .gliederung-item {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem 2.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+            border-left: 6px solid var(--gold);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .gliederung-item:hover {
+            transform: translateX(10px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+            border-left-color: var(--dark);
+        }
+        .gliederung-item h3 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.8rem;
+            color: var(--dark);
+            margin-bottom: 0.5rem;
+        }
+        .gliederung-item p {
+            font-size: 1.15rem;
+            color: var(--accent);
+        }
+        .gliederung-num {
+            display: inline-block;
+            background: var(--gold);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 40px;
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-right: 1rem;
+            vertical-align: middle;
+        }
+
+        /* CONTENT */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+        .section-header h2 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: clamp(2.2rem, 4vw, 3.5rem);
+            color: var(--dark);
+            margin-bottom: 1rem;
+            position: relative;
+            display: inline-block;
+        }
+        .section-header h2::after {
+            content: '';
+            position: absolute;
+            bottom: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 4px;
+            background: var(--gold);
+            border-radius: 2px;
+        }
+        .section-header p {
+            font-size: 1.25rem;
+            color: var(--accent);
+            max-width: 800px;
+            margin: 2rem auto 0;
+        }
+
+        /* BIOGRAFIE */
+        .bio-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 4rem;
+            align-items: start;
+        }
+        .bio-sidebar { position: sticky; top: 90px; }
+        .bio-image { margin-bottom: 2rem; }
+        .bio-image img {
+            width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+        .bio-image img:hover { transform: scale(1.02); }
+        .bio-image-caption {
+            text-align: center;
+            margin-top: 1rem;
+            font-style: italic;
+            color: var(--accent);
+            font-size: 1rem;
+        }
+        .bio-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+            border-left: 5px solid var(--gold);
+            transition: all 0.3s ease;
+        }
+        .bio-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+        }
+        .bio-card h3 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.6rem;
+            color: var(--dark);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+        .bio-card ul {
+            list-style: none;
+            padding: 0;
+        }
+        .bio-card ul li {
+            padding-left: 1.5rem;
+            position: relative;
+            margin-bottom: 0.8rem;
+            font-size: 1.1rem;
+            line-height: 1.7;
+        }
+        .bio-card ul li::before {
+            content: '->';
+            position: absolute;
+            left: 0;
+            color: var(--gold);
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        .bio-card ul li strong { color: var(--dark); }
+
+        .timeline {
+            position: relative;
+            padding-left: 2.5rem;
+            margin: 2.5rem 0;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--gold);
+            border-radius: 2px;
+        }
+        .timeline-item {
+            position: relative;
+            margin-bottom: 2.5rem;
+            padding-left: 1.5rem;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -2.5rem;
+            top: 0.5rem;
+            width: 16px;
+            height: 16px;
+            background: var(--gold);
+            border-radius: 50%;
+            transform: translateX(-6px);
+            border: 3px solid var(--cream);
+        }
+        .timeline-year {
+            font-family: 'Cormorant Garamond', serif;
+            font-weight: 700;
+            color: var(--gold);
+            font-size: 1.4rem;
+            display: block;
+            margin-bottom: 0.4rem;
+        }
+        .timeline-content {
+            font-size: 1.1rem;
+            color: var(--text);
+            line-height: 1.7;
+        }
+
+        /* ABENDLIED SPLIT */
+        .poem-split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            min-height: calc(100vh - 70px);
+        }
+        .poem-left {
+            background: linear-gradient(180deg, var(--dark) 0%, var(--warm) 100%);
+            color: var(--cream);
+            padding: 4rem 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: sticky;
+            top: 70px;
+            height: calc(100vh - 70px);
+            overflow-y: auto;
+        }
+        .poem-left::-webkit-scrollbar { width: 6px; }
+        .poem-left::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); }
+        .poem-left::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 3px; }
+        .poem-left-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2.5rem;
+            color: var(--gold);
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+        .poem-left-author {
+            font-size: 1.1rem;
+            opacity: 0.7;
+            margin-bottom: 3rem;
+            text-align: center;
+        }
+        .poem-text {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.4rem;
+            line-height: 2.4;
+            text-align: left;
+            max-width: 500px;
+        }
+        .poem-stanza {
+            margin-bottom: 2rem;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .poem-stanza:hover {
+            background: rgba(201, 168, 76, 0.15);
+            transform: scale(1.02);
+        }
+        .poem-stanza.active {
+            background: rgba(201, 168, 76, 0.25);
+            box-shadow: 0 0 20px rgba(201, 168, 76, 0.3);
+            border-left: 4px solid var(--gold);
+        }
+        .poem-stanza-num {
+            display: inline-block;
+            background: var(--gold);
+            color: var(--dark);
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .poem-right {
+            background: var(--cream);
+            padding: 3rem;
+            overflow-y: auto;
+            max-height: calc(100vh - 70px);
+        }
+        .poem-right::-webkit-scrollbar { width: 8px; }
+        .poem-right::-webkit-scrollbar-track { background: #e0d8cc; }
+        .poem-right::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 4px; }
+
+        .analysis-card {
+            background: var(--card-bg);
+            padding: 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            border-top: 5px solid var(--gold);
+            margin-bottom: 2rem;
+        }
+        .analysis-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.12);
+        }
+        .analysis-card.highlighted {
+            border-top-color: var(--dark);
+            background: var(--highlight);
+            box-shadow: 0 0 25px rgba(201, 168, 76, 0.2);
+        }
+        .analysis-card h4 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.6rem;
+            color: var(--dark);
+            margin-bottom: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+        .analysis-card p, .analysis-card ul {
+            font-size: 1.1rem;
+            color: var(--text);
+            line-height: 1.9;
+        }
+        .analysis-card ul {
+            list-style: none;
+            padding: 0;
+        }
+        .analysis-card ul li {
+            padding-left: 1.8rem;
+            position: relative;
+            margin-bottom: 0.8rem;
+        }
+        .analysis-card ul li::before {
+            content: '->';
+            position: absolute;
+            left: 0;
+            color: var(--gold);
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        .stanza-ref {
+            display: inline-block;
+            background: var(--gold);
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-left: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .stanza-ref:hover {
+            background: var(--dark);
+            transform: scale(1.1);
+        }
+        .highlight-box {
+            background: var(--dark);
+            color: var(--cream);
+            padding: 2.5rem;
+            border-radius: 16px;
+            margin: 3rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+        .highlight-box::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, var(--gold) 0%, transparent 70%);
+            opacity: 0.1;
+        }
+        .highlight-box h4 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.7rem;
+            color: var(--gold);
+            margin-bottom: 1.2rem;
+        }
+        .highlight-box p {
+            font-size: 1.15rem;
+            line-height: 1.9;
+        }
+
+        /* QUIZ */
+        .quiz-section {
+            background: linear-gradient(180deg, var(--cream) 0%, #e8e0d4 100%);
+            min-height: 100vh;
+            padding: 4rem 2rem;
+        }
+        .quiz-container { max-width: 900px; margin: 0 auto; }
+        .quiz-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+            border-left: 5px solid var(--gold);
+        }
+        .quiz-card h3 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.6rem;
+            color: var(--dark);
+            margin-bottom: 1.5rem;
+        }
+        .quiz-options {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .quiz-option {
+            padding: 1rem 1.5rem;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1.1rem;
+            background: white;
+        }
+        .quiz-option:hover {
+            border-color: var(--gold);
+            background: var(--highlight);
+        }
+        .quiz-option.correct {
+            border-color: var(--success);
+            background: #e8f5e9;
+        }
+        .quiz-option.wrong {
+            border-color: var(--danger);
+            background: #ffebee;
+        }
+        .quiz-option.selected {
+            border-color: var(--gold);
+            background: var(--highlight);
+        }
+        .quiz-input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-family: 'Source Sans Pro', sans-serif;
+            margin-bottom: 1rem;
+        }
+        .quiz-input:focus {
+            outline: none;
+            border-color: var(--gold);
+        }
+        .quiz-btn {
+            padding: 12px 30px;
+            background: var(--gold);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .quiz-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(201, 168, 76, 0.4);
+        }
+        .quiz-result {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 10px;
+            font-weight: 600;
+            display: none;
+        }
+        .quiz-result.show { display: block; }
+        .quiz-result.correct {
+            background: #e8f5e9;
+            color: var(--success);
+        }
+        .quiz-result.wrong {
+            background: #ffebee;
+            color: var(--danger);
+        }
+        .nickname-input {
+            max-width: 400px;
+            margin: 0 auto 3rem;
+            text-align: center;
+        }
+        .nickname-input h3 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2rem;
+            color: var(--dark);
+            margin-bottom: 1rem;
+        }
+        .nickname-input input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid var(--gold);
+            border-radius: 10px;
+            font-size: 1.2rem;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .leaderboard {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-top: 3rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+        }
+        .leaderboard h3 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.8rem;
+            color: var(--dark);
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+            font-size: 1.1rem;
+        }
+        .leaderboard-item:first-child {
+            background: var(--highlight);
+            border-radius: 10px;
+            font-weight: 700;
+        }
+        .leaderboard-rank {
+            font-weight: 700;
+            color: var(--gold);
+            font-size: 1.3rem;
+            width: 40px;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: white;
+            padding: 3rem;
+            border-radius: 20px;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .modal h3 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2rem;
+            color: var(--dark);
+            margin-bottom: 1rem;
+        }
+        .modal p {
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+        .modal-btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .modal-btn.yes {
+            background: var(--danger);
+            color: white;
+        }
+        .modal-btn.no {
+            background: var(--success);
+            color: white;
+        }
+        .modal-btn:hover { transform: scale(1.05); }
+
+        /* SCHLUSS */
+        .farewell-section {
+            background: linear-gradient(135deg, var(--dark) 0%, var(--warm) 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .farewell-section::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80') center/cover;
+            opacity: 0.08;
+        }
+        .farewell-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            max-width: 900px;
+            color: var(--cream);
+        }
+        .farewell-content h2 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            margin-bottom: 2rem;
+            color: var(--gold);
+        }
+        .farewell-content p {
+            font-size: 1.3rem;
+            line-height: 2;
+            margin-bottom: 1.5rem;
+            opacity: 0.95;
+        }
+        .farewell-quote {
+            font-family: 'Cormorant Garamond', serif;
+            font-style: italic;
+            font-size: 1.6rem;
+            color: var(--gold);
+            margin: 2rem 0;
+            padding: 2rem;
+            border-top: 2px solid rgba(201, 168, 76, 0.3);
+            border-bottom: 2px solid rgba(201, 168, 76, 0.3);
+        }
+        .farewell-btn {
+            display: inline-block;
+            margin-top: 2rem;
+            padding: 15px 40px;
+            background: var(--gold);
+            color: var(--dark);
+            text-decoration: none;
+            font-size: 1.1rem;
+            font-weight: 700;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            border: none;
+            cursor: pointer;
+        }
+        .farewell-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(201, 168, 76, 0.4);
+        }
+
+        /* FOOTER */
+        footer {
+            background: var(--dark);
+            color: var(--cream);
+            text-align: center;
+            padding: 3rem 2rem;
+        }
+        footer p {
+            font-size: 1rem;
+            opacity: 0.7;
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 1024px) {
+            .poem-split { grid-template-columns: 1fr; }
+            .poem-left {
+                position: relative;
+                top: 0;
+                height: auto;
+                min-height: auto;
+                padding: 3rem 2rem;
+            }
+            .poem-right { max-height: none; }
+            .bio-grid { grid-template-columns: 1fr; }
+            .bio-sidebar { position: relative; top: 0; }
+        }
+        @media (max-width: 768px) {
+            .nav-container { height: 60px; }
+            .nav-link {
+                padding: 8px 15px;
+                font-size: 0.85rem;
+                letter-spacing: 1px;
+            }
+            .section { padding-top: 60px; }
+            .gliederung-item { padding: 1.5rem; }
+            .gliederung-item h3 { font-size: 1.4rem; }
+            .analysis-card { padding: 1.5rem; }
+        }
+
+        /* UTILITY */
+        .intro-text {
+            font-size: 1.3rem;
+            line-height: 2;
+            text-align: center;
+            max-width: 900px;
+            margin: 0 auto 3rem;
+            color: var(--text);
+        }
+        .divider {
+            width: 120px;
+            height: 3px;
+            background: var(--gold);
+            margin: 3rem auto;
+            border-radius: 2px;
+        }
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        .gallery img {
+            width: 100%;
+            height: 220px;
+            object-fit: cover;
+            border-radius: 12px;
+            transition: transform 0.3s ease;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        .gallery img:hover { transform: scale(1.03); }
+        @media (max-width: 600px) {
+            .gallery { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="nav-container">
+            <button class="nav-link active" onclick="showSection('start')">Startseite</button>
+            <button class="nav-link" onclick="showSection('gliederung')">Gliederung</button>
+            <button class="nav-link" onclick="showSection('biografie')">Biografie</button>
+            <button class="nav-link" onclick="showSection('abendlied')">Abendlied</button>
+            <button class="nav-link" onclick="showSection('quiz')">Quiz</button>
+            <button class="nav-link" onclick="showSection('schluss')">Schluss</button>
+        </div>
+    </nav>
+
+    <!-- STARTSEITE -->
+    <section id="start" class="section active">
+        <div class="hero">
+            <div class="hero-content">
+                <h1>Gottfried Keller</h1>
+                <p class="hero-subtitle">Dichter des Realismus</p>
+                <p class="hero-quote">Wer die Welt nicht mit seinen Augen sieht, sieht sie ueberhaupt nicht.</p>
+                <p class="hero-info">1819 - 1890 . Zuerich . Schweiz</p>
+            </div>
+            <div class="scroll-indicator" onclick="showSection('gliederung')">v</div>
+        </div>
+
+        <div class="container">
+            <div class="section-header">
+                <h2>Willkommen</h2>
+                <p>Entdecken Sie Leben und Werk des bedeutendsten Schweizer Dichters des 19. Jahrhunderts</p>
+            </div>
+
+            <p class="intro-text">
+                Gottfried Keller zaehlt zu den herausragenden Gestalten der deutschsprachigen Literatur. 
+                Als Romancier, Novellist und Lyriker praegte er den literarischen Realismus nachhaltig. 
+                Diese Praesentation fuehrt Sie durch sein bewegtes Leben und analysiert sein beruehrendes Gedicht 
+                Abendlied - ein Meisterwerk der spaeten Lyrik.
+            </p>
+
+            <div class="divider"></div>
+
+            <div class="gallery">
+                <img src="https://kimi-web-img.moonshot.cn/img/upload.wikimedia.org/2a3aff3e8c53edbb43a5311567dcbe5c3b666077.jpg" alt="Gottfried Keller Portraet 1872">
+                <img src="https://kimi-web-img.moonshot.cn/img/upload.wikimedia.org/66259e072f3a4e6ed305959a4e4c472d6056bc73.jpeg" alt="Gottfried Keller Fotografie">
+                <img src="https://kimi-web-img.moonshot.cn/img/upload.wikimedia.org/369b9bf4d58e82dce77a7ab9bb0e615fe572371e.jpg" alt="Gottfried Keller Portraet">
+            </div>
+
+            <div style="text-align: center; margin-top: 3rem;">
+                <p style="font-style: italic; color: var(--accent); font-size: 1.2rem;">
+                    Die drei oder vier groessten Prosaiker der deutschen Sprache<br>
+                    <span style="font-size: 0.95rem;">- Walter Benjamin ueber Gottfried Keller</span>
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- GLIEDERUNG -->
+    <section id="gliederung" class="section">
+        <div class="gliederung-section">
+            <div class="gliederung-container">
+                <h2 class="gliederung-title">Gliederung der Praesentation</h2>
+
+                <ul class="gliederung-list">
+                    <li class="gliederung-item" onclick="showSection('biografie')">
+                        <h3><span class="gliederung-num">1</span> Biografie</h3>
+                        <p>Leben, Familie, Werdegang vom Maler zum Dichter, groesste Erfolge</p>
+                    </li>
+                    <li class="gliederung-item" onclick="showSection('abendlied')">
+                        <h3><span class="gliederung-num">2</span> Abendlied - Gedichtanalyse</h3>
+                        <p>Aeußere Form, sprachlich-stilistische Besonderheiten, Inhalt & Deutung</p>
+                    </li>
+                    <li class="gliederung-item" onclick="showSection('quiz')">
+                        <h3><span class="gliederung-num">3</span> Interaktives Quiz</h3>
+                        <p>Teste dein Wissen ueber Gottfried Keller und das Abendlied</p>
+                    </li>
+                    <li class="gliederung-item" onclick="showSection('schluss')">
+                        <h3><span class="gliederung-num">4</span> Schluss</h3>
+                        <p>Zusammenfassung und zentrale Erkenntnisse</p>
+                    </li>
+                </ul>
+
+                <div style="text-align: center; margin-top: 4rem;">
+                    <button class="farewell-btn" onclick="showSection('biografie')">Praesentation starten -></button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- BIOGRAFIE -->
+    <section id="biografie" class="section">
+        <div class="container">
+            <div class="section-header">
+                <h2>Biografie</h2>
+                <p>Vom Maler zum Dichter - das bewegte Leben des Gottfried Keller</p>
+            </div>
+
+            <div class="bio-grid">
+                <div class="bio-sidebar">
+                    <div class="bio-image">
+                        <img src="https://kimi-web-img.moonshot.cn/img/upload.wikimedia.org/2c8f289b4cce9c0d1602b44d684b21a09d9f2fd8.jpg" alt="Gottfried Keller Portraet">
+                        <p class="bio-image-caption">Gottfried Keller (1819-1890)<br>Schweizer Dichter und Staatsschreiber</p>
+                    </div>
+                    <div class="bio-image">
+                        <img src="https://kimi-web-img.moonshot.cn/img/cdn.webshopapp.com/a5ad3311e40ad42ddec823cf3b3a8e8b0fccaad9.jpg" alt="Romantische Landschaft">
+                        <p class="bio-image-caption">Romantische Landschaftsmalerei -<br>Kellers erste kuenstlerische Leidenschaft</p>
+                    </div>
+                </div>
+
+                <div class="bio-text">
+                    <div class="bio-card">
+                        <h3>Wer war er?</h3>
+                        <ul>
+                            <li><strong>Bedeutendster Schweizer Dichter</strong> des 19. Jahrhunderts</li>
+                            <li>Romancier, Novellist und Lyriker des <strong>Realismus</strong></li>
+                            <li>Bekannt fuer: Der gruene Heinrich, Die Leute von Seldwyla, Zuercher Novellen</li>
+                            <li>Nietzsche nannte die Leute von Seldwyla einen <strong>Schatz der deutschen Prosa</strong></li>
+                            <li>Walter Benjamin zaehlte ihn zu den <strong>groessten Prosaikern</strong> der deutschen Sprache</li>
+                        </ul>
+                    </div>
+
+                    <div class="bio-card">
+                        <h3>Familie & Kindheit</h3>
+                        <ul>
+                            <li>Geboren <strong>19. Juli 1819</strong> in Zuerich</li>
+                            <li>Vater: Drechslermeister Rudolf Keller - stirbt <strong>1824</strong> mit nur 33 Jahren</li>
+                            <li>Mutter: Elisabeth Scheuchzer, Arzttochter - zweite Ehe, Scheidung 1834</li>
+                            <li><strong>4 von 6 Geschwistern</strong> sterben im Kleinkindalter</li>
+                            <li>Finanzielle Not nach Vaters Tod - Besuch der <strong>Armenschule</strong></li>
+                            <li>Fruehe Begabung fuer <strong>Malerei und Literatur</strong></li>
+                        </ul>
+                    </div>
+
+                    <div class="bio-card">
+                        <h3>Vom Maler zum Dichter</h3>
+                        <ul>
+                            <li><strong>1834:</strong> Verweis von der Industrieschule - Entschluss, Maler zu werden</li>
+                            <li><strong>1834-1837:</strong> Lehre als Vedutenmaler in Zuerich</li>
+                            <li><strong>1840-1842:</strong> Studium in Muenchen - scheitert als Maler (Typhus, kein Geld)</li>
+                            <li><strong>1843:</strong> Wendung zur <strong>Lyrik</strong> - erste Gedichte</li>
+                            <li><strong>1845:</strong> Erstveroeffentlichung: Lieder eines Autodidakten</li>
+                            <li><strong>1848-1849:</strong> Studium in Heidelberg - Begegnung mit <strong>Ludwig Feuerbach</strong></li>
+                        </ul>
+                    </div>
+
+                    <div class="bio-card">
+                        <h3>Groesste Erfolge</h3>
+                        <ul>
+                            <li><strong>1850-1855:</strong> Berliner Jahre - Der gruene Heinrich (Roman)</li>
+                            <li><strong>1856-1874:</strong> Die Leute von Seldwyla (Novellenzyklus)</li>
+                            <li><strong>1861:</strong> Wahl zum <strong>Ersten Staatsschreiber</strong> von Zuerich</li>
+                            <li><strong>1876:</strong> Ruecktritt - Leben als <strong>freier Schriftsteller</strong></li>
+                            <li><strong>1878-1880:</strong> Zuercher Novellen</li>
+                            <li><strong>1886:</strong> Martin Salander (letzter Roman)</li>
+                        </ul>
+                    </div>
+
+                    <div class="bio-card">
+                        <h3>Privates & Tod</h3>
+                        <ul>
+                            <li>Zeitlebens <strong>unverheiratet</strong></li>
+                            <li><strong>1866:</strong> Verlobte Luise Scheidegger nimmt sich das Leben</li>
+                            <li>Starb <strong>15. Juli 1890</strong> in Zuerich</li>
+                            <li>Begraebnis wurde zum <strong>Staatsakt</strong></li>
+                        </ul>
+                    </div>
+
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <span class="timeline-year">1819</span>
+                            <span class="timeline-content">Geburt in Zuerich</span>
+                        </div>
+                        <div class="timeline-item">
+                            <span class="timeline-year">1824</span>
+                            <span class="timeline-content">Tod des Vaters, finanzielle Not</span>
+                        </div>
+                        <div class="timeline-item">
+                            <span class="timeline-year">1834</span>
+                            <span class="timeline-content">Verweis von der Schule, Beginn Malerlehre</span>
+                        </div>
+                        <div class="timeline-item">
+                            <span class="timeline-year">1840-42</span>
+                            <span class="timeline-content">Muenchen - Scheitern als Maler</span>
+                        </div>
+                        <div class="timeline-item">
+                            <span class="timeline-year">1845</span>
+                            <span class="timeline-content">Erstveroeffentlichung als Dichter</span>
+                        </div>
+                        <div class="timeline-item">
+                            <span class="timeline-year">1848-49</span>
+                            <span class="timeline-content">Heidelberg, Feuerbach</span>
+                        </div>
+                        <div class="timeline-item">
+                            <span class="timeline-year">1850-55</span>
+                            <span class="timeline-content">Berlin, Der gruene Heinrich</span>
+                        </div>
+                        <div class="timeline-item">
+                            <span class="timeline-year">1861</span>
+                            <span class="timeline-content">Staatsschreiber von Zuerich</span>
+                        </div>
+                        <div class="timeline-item">
+                            <span class="timeline-year">1876</span>
+                            <span class="timeline-content">Freier Schriftsteller</span>
+                        </div>
+                        <div class="timeline-item">
+                            <span class="timeline-year">1890</span>
+                            <span class="timeline-content">Tod in Zuerich</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+
+
+
+
+
+
+
+
+    <!-- ABENDLIED -->
+    <section id="abendlied" class="section">
+        <div class="poem-split">
+            <div class="poem-left">
+                <h3 class="poem-left-title">Abendlied</h3>
+                <p class="poem-left-author">Gottfried Keller . 1879</p>
+                
+                <div class="poem-text">
+                    <div class="poem-stanza" data-stanza="1" onclick="highlightStanza(1)" onmouseenter="highlightStanza(1)" onmouseleave="clearHighlight()">
+                        <span class="poem-stanza-num">1</span><br>
+                        Augen, meine lieben Fensterlein,<br>
+                        Gebt mir schon so lange holden Schein,<br>
+                        Lasset freundlich Bild um Bild herein:<br>
+                        Einmal werdet ihr verdunkelt sein!
+                    </div>
+                    <div class="poem-stanza" data-stanza="2" onclick="highlightStanza(2)" onmouseenter="highlightStanza(2)" onmouseleave="clearHighlight()">
+                        <span class="poem-stanza-num">2</span><br>
+                        Fallen einst die mueden Lider zu,<br>
+                        Loescht ihr aus, dann hat die Seele Ruh;<br>
+                        Tastend streift sie ab die Wanderschuh',<br>
+                        Legt sich auch in ihre finstre Truh'.
+                    </div>
+                    <div class="poem-stanza" data-stanza="3" onclick="highlightStanza(3)" onmouseenter="highlightStanza(3)" onmouseleave="clearHighlight()">
+                        <span class="poem-stanza-num">3</span><br>
+                        Noch zwei Fuenklein sieht sie glimmend stehn,<br>
+                        Wie zwei Sternlein innerlich zu sehn,<br>
+                        Bis sie schwanken und dann auch vergehn,<br>
+                        Wie von eines Falters Fluegelwehn.
+                    </div>
+                    <div class="poem-stanza" data-stanza="4" onclick="highlightStanza(4)" onmouseenter="highlightStanza(4)" onmouseleave="clearHighlight()">
+                        <span class="poem-stanza-num">4</span><br>
+                        Doch noch wandl' ich auf dem Abendfeld,<br>
+                        Nur dem sinkenden Gestirn gesellt;<br>
+                        Trinkt, o Augen, was die Wimper haelt,<br>
+                        Von dem goldnen Ueberfluss der Welt!
+                    </div>
+                </div>
+            </div>
+
+            <div class="poem-right">
+                <div class="section-header" style="margin-bottom: 2rem;">
+                    <h2 style="font-size: 2rem;">Abendlied - Gedichtanalyse</h2>
+                </div>
+
+                <div class="analysis-card" id="card-intro">
+                    <h4>Warum dieses Gedicht?</h4>
+                    <p>
+                        <strong>Entstehungsjahr:</strong> 1879 - in Kellers spaeten Jahren als freier Schriftsteller
+                    </p>
+                    <p style="margin-top: 0.8rem;">
+                        <strong>Beweggrund:</strong> Keller schrieb das Gedicht im Alter von 60 Jahren. Er hatte den Tod vieler geliebter Menschen erlebt 
+                        (Vater frueh, Geschwister, Verlobte 1866) und stand selbst im Abend seines Lebens. Das Gedicht reflektiert seine reife 
+                        Auseinandersetzung mit der eigenen Vergaenglichkeit - nicht als Furcht, sondern als gelassene Akzeptanz.
+                    </p>
+                    <p style="margin-top: 0.8rem;">
+                        <strong>Zeitlicher Kontext:</strong> Nach seinem Ruecktritt als Staatsschreiber (1876) lebte Keller als freier Schriftsteller in Zuerich. 
+                        Diese Phase war produktiv, aber auch von Krankheit und Einsamkeit gepraegt. Das Abendlied ist typisch fuer seine spaete Lyrik: 
+                        meditativ, naturverbunden und trotz des Todenkmals lebensbejahend.
+                    </p>
+                </div>
+
+                <div class="analysis-card" id="card-form" onmouseenter="highlightStanza(1)" onmouseleave="clearHighlight()">
+                    <h4>Aeußere Form</h4>
+                    <ul>
+                        <li><strong>Textsorte:</strong> Lyrik, klassisches Gedicht / Liedform</li>
+                        <li><strong>Strophen:</strong> 4 Strophen a 4 Verse (16 Verse insgesamt)</li>
+                        <li><strong>Metrum:</strong> Vierhebiger Jambus</li>
+                        <li><strong>Silbenzahl:</strong> Jeweils 9 Silben pro Vers</li>
+                        <li><strong>Kadenz:</strong> Maennliche Kadenz (betonte Endsilbe)</li>
+                        <li><strong>Reimschema:</strong> Haufenreim (aaaa / bbbb / cccc / dddd)</li>
+                        <li><strong>Epoche:</strong> Realismus (mit romantischen Elementen)</li>
+                    </ul>
+                    <p style="margin-top: 1rem;">
+                        Der Haufenreim erzeugt einen harmonischen, fast hymnischen Klang. 
+                        Die regelmaessige Form spiegelt die Gelassenheit wider, mit der der Sprecher dem Tod entgegensieht.
+                    </p>
+                </div>
+
+                <div class="analysis-card" id="card-strophe1" onmouseenter="highlightStanza(1)" onmouseleave="clearHighlight()">
+                    <h4>Analyse der 1. Strophe (Verse 1-4)</h4>
+                    <p style="margin-bottom: 1rem;"><strong>"Augen, meine lieben Fensterlein"</strong></p>
+                    <ul>
+                        <li><strong>Apostrophe:</strong> Das lyrische Ich spricht seine Augen direkt an - eine innige, persoenliche Anrede</li>
+                        <li><strong>Metapher "Fensterlein":</strong> Die Augen sind die Fenster zur Seele und zur Welt. Das Diminutiv (-lein) drueckt Zuneigung und Vertrautheit aus</li>
+                        <li><strong>"holden Schein":</strong> Das Adjektiv "hold" (lieblich, hold) verleiht dem Sehen eine warme, freundliche Qualitaet</li>
+                        <li><strong>"Bild um Bild herein":</strong> Die Augen lassen staendig neue Eindruecke in das Innere des Ich eintreten</li>
+                        <li><strong>Kontrast in V. 4:</strong> "Einmal werdet ihr verdunkelt sein!" - Der Ausrufezeichen unterbricht die sanfte Stimmung mit einem Schockmoment. Der Tod wird als unvermeidliche Verdunkelung der Augen eingefuehrt</li>
+                    </ul>
+                    <p style="margin-top: 1rem;">
+                        <strong>Stimmung:</strong> Harmonisch und vertraut, durchbrochen von einem leisen Todesahnen. Die Verniedlichung "Fensterlein" und das Adjektiv "lieben" erzeugen eine warme, fast kindliche Zuneigung zu den eigenen Augen.
+                    </p>
+                </div>
+
+                <div class="analysis-card" id="card-strophe2" onmouseenter="highlightStanza(2)" onmouseleave="clearHighlight()">
+                    <h4>Analyse der 2. Strophe (Verse 5-8)</h4>
+                    <p style="margin-bottom: 1rem;"><strong>"Fallen einst die mueden Lider zu"</strong></p>
+                    <ul>
+                        <li><strong>Euphemismus:</strong> Der Tod wird als sanftes Einschlafen beschrieben ("mueden Lider zu"), nicht als Schrecken</li>
+                        <li><strong>"Loescht ihr aus":</strong> Die Augen erlischen wie Kerzen - ein Bild des sanften Verloeschens</li>
+                        <li><strong>"dann hat die Seele Ruh":</strong> Der Tod wird als Ruhe, als Befreiung dargestellt. Das Wort "Ruh" (statt "Ruhe") klingt archaisch und wuerdevoll</li>
+                        <li><strong>Metapher "Wanderschuh':"</strong> Das Leben wird als Wanderung verstanden. Die Seele streift die Wanderschuhe ab - sie beendet ihre irdische Reise</li>
+                        <li><strong>"finstre Truh':"</strong> Die Seele legt sich in ihre dunkle Truhe (Sarg). "Truh'" ist ein archaischer, fast gemuetlicher Begriff, der das Furchtbare mildert</li>
+                    </ul>
+                    <p style="margin-top: 1rem;">
+                        <strong>Stimmung:</strong> Die Strophe beschreibt den Sterbemoment, aber ohne Angst. Die Alltaeglichkeit der Bilder (Wanderschuh, Truhe) macht den Tod greifbar und normal. Es ist ein friedvoller Abschied.
+                    </p>
+                </div>
+
+                <div class="analysis-card" id="card-strophe3" onmouseenter="highlightStanza(3)" onmouseleave="clearHighlight()">
+                    <h4>Analyse der 3. Strophe (Verse 9-12)</h4>
+                    <p style="margin-bottom: 1rem;"><strong>"Noch zwei Fuenklein sieht sie glimmend stehn"</strong></p>
+                    <ul>
+                        <li><strong>"zwei Fuenklein":</strong> Die letzten Reste des Bewusstseins, der Lebensenergie in den Augen. Diminutiv fuer Zartheit und Vergaenglichkeit</li>
+                        <li><strong>Vergleich "Wie zwei Sternlein":</strong> Die Funken werden mit Sternen verglichen - Romantisierung des Sterbens. Sterne sind fern, rein und ewig</li>
+                        <li><strong>"innerlich zu sehn":</strong> Die Sterne sind nicht aeusserlich wahrnehmbar, sondern innere Visionen der sterbenden Seele</li>
+                        <li><strong>"schwanken und dann auch vergehn":</strong> Die Funken erlischen langsam, unsicher - ein sanfter, schwankender Uebergang in den Tod</li>
+                        <li><strong>Vergleich "Wie von eines Falters Fluegelwehn":</strong> Der Tod tritt ein wie der leise Luftstrom von Schmetterlingsfluegeln. Ein Bild von Zerbrechlichkeit, Leichtigkeit und Stille</li>
+                    </ul>
+                    <p style="margin-top: 1rem;">
+                        <strong>Stimmung:</strong> Die Strophe malt den langsamen Erloeschensprozess in zarten, fast maerchenhaften Bildern. Der Falter als Symbol fuer Zerbrechlichkeit und die Sternlein als Symbole fuer das Unvergaengliche verbinden sich zu einer poetischen Darstellung des Todes.
+                    </p>
+                </div>
+
+                <div class="analysis-card" id="card-strophe4" onmouseenter="highlightStanza(4)" onmouseleave="clearHighlight()">
+                    <h4>Analyse der 4. Strophe (Verse 13-16)</h4>
+                    <p style="margin-bottom: 1rem;"><strong>"Doch noch wandl' ich auf dem Abendfeld"</strong></p>
+                    <ul>
+                        <li><strong>Kontrast "Doch noch":</strong> Ein ueberraschender Ruck nach vorne. Nach den drei Todesstrophen kehrt das Ich ins Leben zurueck</li>
+                        <li><strong>Symbol "Abendfeld":</strong> Das Feld im Abendlicht - Metapher fuer die spaete Lebensphase. Der Abend ist weder Tag noch Nacht, sondern ein Uebergang</li>
+                        <li><strong>"sinkenden Gestirn gesellt":</strong> Das Ich ist der untergehenden Sonne verbunden. Eine stille Gemeinschaft im Vergaenglichen</li>
+                        <li><strong>Imperativ "Trinkt, o Augen":</strong> Ein hymnischer Aufruf, ein Carpe-diem-Gebot. Die Augen sollen "trinken" - intensiv, genussvoll wahrnehmen</li>
+                        <li><strong>"was die Wimper haelt":</strong> Selbst das kleinste Detail (ein Traenen-Tropfen an der Wimper?) wird zum Kostbaren</li>
+                        <li><strong>"goldnen Ueberfluss der Welt":</strong> Hyperbolische Steigerung - die Welt ist ein Ueberfluss an Schoenheit, den man auschoepfen soll</li>
+                    </ul>
+                    <p style="margin-top: 1rem;">
+                        <strong>Stimmung:</strong> Die Strophe ist ein lebensbejahender Hymnus. Statt in Melancholie zu verharren, ruft das Ich dazu auf, die verbleibende Zeit intensiv zu nutzen. Der Imperativ und das Bild vom "Trinken" verleihen der Strophe eine ekstatische, fast rauschhafte Qualitaet.
+                    </p>
+                </div>
+
+                <div class="analysis-card" id="card-interpretation">
+                    <h4>Gesamtdeutung</h4>
+                    <p>
+                        Das Gedicht thematisiert die <strong>Vergaenglichkeit des menschlichen Lebens</strong> und den bewussten Umgang mit ihr. 
+                        Der Sprecher befindet sich im metaphorischen Abend seines Lebens und sieht dem Tod gelassen entgegen. 
+                        Die Augen - Sinnesorgan des Sehens und Metapher fuer die Wahrnehmung - werden liebevoll als Fensterlein apostrophiert.
+                    </p>
+                    <p style="margin-top: 0.8rem;">
+                        Besonders bemerkenswert ist die <strong>Wende in der letzten Strophe</strong>: Statt in Melancholie zu verharren, 
+                        ruft das Ich dazu auf, die verbleibende Zeit intensiv zu nutzen. Der Imperativ "Trinkt, o Augen" ist ein hymnischer 
+                        Aufruf zur <strong>carpe diem</strong>-Haltung - ein letztes, trunkenes Schoepfen aus dem goldnen Ueberfluss der Welt.
+                    </p>
+                    <p style="margin-top: 0.8rem;">
+                        <strong>Kurz gesagt:</strong> Die ersten drei Strophen beschreiben den Tod als friedvollen Uebergang, 
+                        die vierte kehrt ueberraschend ins Leben zurueck. Diese scheinbar widerspruechliche Verbindung zeigt 
+                        Kellers reife Weltanschauung: <strong>Der Tod gibt dem Leben erst seinen Wert.</strong>
+                    </p>
+                </div>
+
+                <div class="highlight-box">
+                    <h4>Zentrale Aussage</h4>
+                    <p>
+                        Kellers Abendlied ist ein Meisterwerk der spaeten Lyrik, das den Tod nicht als bedrohlichen Gegner, sondern als natuerlichen 
+                        Abschluss des Lebens akzeptiert. Die scheinbar widerspruechliche Verbindung von melancholischer Vergaenglichkeitsreflexion und 
+                        lebensbejahendem Hymnus zeigt Kellers reife Weltanschauung: <strong>Der Tod gibt dem Leben erst seinen Wert.</strong> 
+                        Das Gedicht steht damit in der Tradition der <em>vanitas</em>-Meditation, loest sich jedoch von deren moralisierendem Unterton 
+                        und feiert stattdessen die Schoenheit des Augenblicks.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- QUIZ -->
+    <section id="quiz" class="section">
+        <div class="quiz-section">
+            <div class="quiz-container">
+                <div class="section-header">
+                    <h2>Interaktives Quiz</h2>
+                    <p>Teste dein Wissen ueber Gottfried Keller und das Abendlied</p>
+                </div>
+
+                <div class="nickname-input" id="nickname-section">
+                    <h3>Willkommen zum Quiz!</h3>
+                    <p style="margin-bottom: 1.5rem; color: var(--accent);">Gib deinen Nickname ein, um zu starten:</p>
+                    <input type="text" id="nickname" placeholder="Dein Nickname..." maxlength="20">
+                    <button class="quiz-btn" onclick="startQuiz()">Quiz starten</button>
+                </div>
+
+                <div id="quiz-content" style="display: none;">
+                    <div class="quiz-card" id="q1">
+                        <h3>Frage 1 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Wann wurde Gottfried Keller geboren?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q1')">1815</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q1')">1819</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q1')">1820</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q1')">1825</div>
+                        </div>
+                        <div class="quiz-result" id="result-q1"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q2">
+                        <h3>Frage 2 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Welches Werk ist KEIN Werk von Gottfried Keller?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q2')">Der gruene Heinrich</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q2')">Die Leute von Seldwyla</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q2')">Faust</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q2')">Zuercher Novellen</div>
+                        </div>
+                        <div class="quiz-result" id="result-q2"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q3">
+                        <h3>Frage 3 (Texteingabe)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">In welchem Jahr wurde Abendlied veroeffentlicht?</p>
+                        <input type="text" class="quiz-input" id="input-q3" placeholder="Deine Antwort...">
+                        <button class="quiz-btn" onclick="checkTextAnswer('q3', '1879')">Pruefen</button>
+                        <div class="quiz-result" id="result-q3"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q4">
+                        <h3>Frage 4 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Wie viele Strophen hat das Gedicht Abendlied?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q4')">2</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q4')">3</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q4')">4</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q4')">5</div>
+                        </div>
+                        <div class="quiz-result" id="result-q4"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q5">
+                        <h3>Frage 5 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Welches Reimschema weist das Gedicht auf?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q5')">Kreuzreim (abab)</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q5')">Haufenreim (aaaa)</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q5')">Paarreim (aabb)</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q5')">Umarmender Reim (abba)</div>
+                        </div>
+                        <div class="quiz-result" id="result-q5"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q6">
+                        <h3>Frage 6 (Texteingabe)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Welches Metrum hat das Gedicht? (z.B. vierhebiger Jambus)</p>
+                        <input type="text" class="quiz-input" id="input-q6" placeholder="Deine Antwort...">
+                        <button class="quiz-btn" onclick="checkTextAnswer('q6', 'vierhebiger Jambus')">Pruefen</button>
+                        <div class="quiz-result" id="result-q6"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q7">
+                        <h3>Frage 7 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Was bedeutet das Diminutiv Fensterlein in der ersten Strophe?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q7')">Kleine Fenster im Haus</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q7')">Die Augen als Fenster zur Seele/Wahrnehmung</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q7')">Brillenglaeser</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q7')">Ein Gemaelde</div>
+                        </div>
+                        <div class="quiz-result" id="result-q7"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q8">
+                        <h3>Frage 8 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Was symbolisiert der Wanderschuh in der zweiten Strophe?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q8')">Eine Wanderung in den Bergen</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q8')">Das irdische Leben als Wanderung</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q8')">Kellers Zeit als Maler</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q8')">Die Reise nach Berlin</div>
+                        </div>
+                        <div class="quiz-result" id="result-q8"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q9">
+                        <h3>Frage 9 (Texteingabe)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Wie viele Silben hat jeder Vers im Abendlied?</p>
+                        <input type="text" class="quiz-input" id="input-q9" placeholder="Deine Antwort...">
+                        <button class="quiz-btn" onclick="checkTextAnswer('q9', '9')">Pruefen</button>
+                        <div class="quiz-result" id="result-q9"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q10">
+                        <h3>Frage 10 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Welche Epoche wird dem Gedicht zugeordnet?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q10')">Romantik</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q10')">Realismus (mit romantischen Elementen)</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q10')">Expressionismus</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q10')">Klassik</div>
+                        </div>
+                        <div class="quiz-result" id="result-q10"></div>
+                    </div>
+
+                    <div style="text-align: center; margin-top: 3rem;">
+                        <button class="quiz-btn" onclick="finishQuiz()" style="font-size: 1.3rem; padding: 15px 40px;">Quiz beenden & Ergebnis anzeigen</button>
+                    </div>
+                </div>
+
+                <div class="leaderboard" id="leaderboard" style="display: none;">
+                    <h3>Rangliste</h3>
+                    <div id="leaderboard-content"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SCHLUSS -->
+    <section id="schluss" class="section">
+        <div class="farewell-section">
+            <div class="farewell-content">
+                <h2>Zusammenfassung</h2>
+                <p>
+                    Gottfried Keller war einer der bedeutendsten deutschsprachigen Autoren des 19. Jahrhunderts. 
+                    Sein Leben war gepraegt von wirtschaftlicher Not, kuenstlerischem Scheitern und schliesslich 
+                    literarischem Ruhm. Als Staatsschreiber von Zuerich fand er die finanzielle Sicherheit, 
+                    die ihm ermoeglichte, als freier Schriftsteller zu arbeiten.
+                </p>
+                <p>
+                    Sein Gedicht <strong>Abendlied</strong> (1879) zeigt die Reife eines Dichters, der den Tod 
+                    nicht fuerchtet, sondern als natuerlichen Teil des Lebens akzeptiert. Die Verbindung von 
+                    Vergaenglichkeitsbewusstsein und Lebensbejahung macht das Gedicht zu einem zeitlosen 
+                    Meisterwerk der deutschen Lyrik.
+                </p>
+                <div class="farewell-quote">
+                    Trinkt, o Augen, was die Wimper haelt,<br>
+                    Von dem goldnen Ueberfluss der Welt!
+                </div>
+                <button class="farewell-btn" onclick="showSection('start')">Zurueck zum Anfang</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- MODAL -->
+    <div class="modal-overlay" id="modal">
+        <div class="modal">
+            <h3>Quiz verlassen?</h3>
+            <p>Bist du sicher, dass du das Quiz verlassen moechtest? Dein Fortschritt wird geloescht!</p>
+            <div class="modal-buttons">
+                <button class="modal-btn yes" onclick="confirmLeaveQuiz()">Ja, verlassen</button>
+                <button class="modal-btn no" onclick="closeModal()">Nein, bleiben</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Gottfried Keller - Leben, Schaffen & Lyrik | Von Maurice Friese und Tom Gruss</p>
+        <p style="margin-top: 0.5rem; font-size: 0.85rem;">Quellen: Gottfried Keller-Gesellschaft, Abipur.de</p>
+    </footer>
+
+    <script>
+        var currentNickname = '';
+        var quizScore = 0;
+        var quizStarted = false;
+        var pendingSection = '';
+        var leaderboardData = JSON.parse(localStorage.getItem('kellerQuizLeaderboard')) || [];
+
+        function showSection(sectionId) {
+            if (quizStarted && sectionId !== 'quiz') {
+                pendingSection = sectionId;
+                document.getElementById('modal').classList.add('show');
+                return;
+            }
+
+            var sections = document.querySelectorAll('.section');
+            var i;
+            for (i = 0; i < sections.length; i++) {
+                sections[i].classList.remove('active');
+            }
+            
+            var targetSection = document.getElementById(sectionId);
+            if (targetSection) targetSection.classList.add('active');
+            
+            var navLinks = document.querySelectorAll('.nav-link');
+            for (i = 0; i < navLinks.length; i++) {
+                navLinks[i].classList.remove('active');
+            }
+            
+            var allLinks = document.querySelectorAll('.nav-link');
+            for (i = 0; i < allLinks.length; i++) {
+                var onclickAttr = allLinks[i].getAttribute('onclick');
+                if (onclickAttr && onclickAttr.indexOf("'" + sectionId + "'") !== -1) {
+                    allLinks[i].classList.add('active');
+                    break;
+                }
+            }
+            
+            window.scrollTo(0, 0);
+        }
+
+        function highlightStanza(num) {
+            clearHighlight();
+            
+            var stanzas = document.querySelectorAll('.poem-stanza[data-stanza="' + num + '"]');
+            var i;
+            for (i = 0; i < stanzas.length; i++) {
+                stanzas[i].classList.add('active');
+            }
+            
+            var cardMap = {
+                1: 'card-strophe1',
+                2: 'card-strophe2', 
+                3: 'card-strophe3',
+                4: 'card-strophe4'
+            };
+            
+            var cardId = cardMap[num];
+            if (cardId) {
+                var card = document.getElementById(cardId);
+                if (card) {
+                    card.classList.add('highlighted');
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }
+
+        function clearHighlight() {
+            var stanzas = document.querySelectorAll('.poem-stanza');
+            var i;
+            for (i = 0; i < stanzas.length; i++) {
+                stanzas[i].classList.remove('active');
+            }
+            var cards = document.querySelectorAll('.analysis-card');
+            for (i = 0; i < cards.length; i++) {
+                cards[i].classList.remove('highlighted');
+            }
+        }
+
+        function startQuiz() {
+            var nickname = document.getElementById('nickname').value.trim();
+            if (!nickname) {
+                alert('Bitte gib einen Nickname ein!');
+                return;
+            }
+            currentNickname = nickname;
+            quizStarted = true;
+            quizScore = 0;
+            document.getElementById('nickname-section').style.display = 'none';
+            document.getElementById('quiz-content').style.display = 'block';
+            document.getElementById('leaderboard').style.display = 'none';
+        }
+
+        function checkAnswer(element, isCorrect, questionId) {
+            var card = element.closest('.quiz-card');
+            var options = card.querySelectorAll('.quiz-option');
+            var result = document.getElementById('result-' + questionId);
+            var j;
+            
+            for (j = 0; j < options.length; j++) {
+                options[j].style.pointerEvents = 'none';
+            }
+            
+            if (isCorrect) {
+                element.classList.add('correct');
+                result.textContent = 'Richtig! +1 Punkt';
+                result.className = 'quiz-result show correct';
+                quizScore++;
+            } else {
+                element.classList.add('wrong');
+                result.textContent = 'Falsch! Die richtige Antwort war eine andere.';
+                result.className = 'quiz-result show wrong';
+                
+                for (j = 0; j < options.length; j++) {
+                    var onclickStr = options[j].getAttribute('onclick') || '';
+                    if (onclickStr.indexOf('true') !== -1) {
+                        options[j].classList.add('correct');
+                    }
+                }
+            }
+        }
+
+        function checkTextAnswer(questionId, correctAnswer) {
+            var input = document.getElementById('input-' + questionId);
+            var result = document.getElementById('result-' + questionId);
+            var userAnswer = input.value.trim().toLowerCase();
+            
+            if (!userAnswer) {
+                alert('Bitte gib eine Antwort ein!');
+                return;
+            }
+            
+            input.disabled = true;
+            
+            var isCorrect = false;
+            if (userAnswer === correctAnswer.toLowerCase()) {
+                isCorrect = true;
+            } else if (questionId === 'q6' && userAnswer.indexOf('jambus') !== -1) {
+                isCorrect = true;
+            } else if (questionId === 'q9' && userAnswer === '9') {
+                isCorrect = true;
+            }
+            
+            if (isCorrect) {
+                result.textContent = 'Richtig! +1 Punkt';
+                result.className = 'quiz-result show correct';
+                quizScore++;
+            } else {
+                result.textContent = 'Falsch! Die richtige Antwort war: ' + correctAnswer;
+                result.className = 'quiz-result show wrong';
+            }
+        }
+
+        function finishQuiz() {
+            quizStarted = false;
+            
+            var entry = {
+                name: currentNickname,
+                score: quizScore,
+                date: new Date().toLocaleDateString('de-DE')
+            };
+            
+            leaderboardData.push(entry);
+            leaderboardData.sort(function(a, b) { return b.score - a.score; });
+            leaderboardData = leaderboardData.slice(0, 10);
+            
+            localStorage.setItem('kellerQuizLeaderboard', JSON.stringify(leaderboardData));
+            
+            document.getElementById('quiz-content').style.display = 'none';
+            document.getElementById('leaderboard').style.display = 'block';
+            
+            var content = document.getElementById('leaderboard-content');
+            content.innerHTML = '<div style="text-align: center; margin-bottom: 2rem; padding: 1.5rem; background: var(--highlight); border-radius: 10px;">' +
+                '<h4 style="font-size: 1.5rem; color: var(--dark); margin-bottom: 0.5rem;">Dein Ergebnis: ' + quizScore + ' / 10 Punkte</h4>' +
+                '<p style="color: var(--accent);">' + currentNickname + '</p>' +
+                '</div>';
+            
+            var index;
+            for (index = 0; index < leaderboardData.length; index++) {
+                var div = document.createElement('div');
+                div.className = 'leaderboard-item';
+                div.innerHTML = '<div style="display: flex; align-items: center; gap: 1rem;">' +
+                    '<span class="leaderboard-rank">#' + (index + 1) + '</span>' +
+                    '<span>' + leaderboardData[index].name + '</span>' +
+                    '</div>' +
+                    '<div style="display: flex; align-items: center; gap: 1rem;">' +
+                    '<span style="font-weight: 700; color: var(--gold);">' + leaderboardData[index].score + ' Punkte</span>' +
+                    '<span style="color: var(--accent); font-size: 0.9rem;">' + leaderboardData[index].date + '</span>' +
+                    '</div>';
+                content.appendChild(div);
+            }
+            
+            var restartBtn = document.createElement('div');
+            restartBtn.style.textAlign = 'center';
+            restartBtn.style.marginTop = '2rem';
+            restartBtn.innerHTML = '<button class="quiz-btn" onclick="resetQuiz()">Neu starten</button>';
+            content.appendChild(restartBtn);
+        }
+
+        function resetQuiz() {
+            document.getElementById('nickname-section').style.display = 'block';
+            document.getElementById('quiz-content').style.display = 'none';
+            document.getElementById('leaderboard').style.display = 'none';
+            document.getElementById('nickname').value = '';
+            
+            var options = document.querySelectorAll('.quiz-option');
+            var i;
+            for (i = 0; i < options.length; i++) {
+                options[i].classList.remove('correct', 'wrong', 'selected');
+                options[i].style.pointerEvents = 'auto';
+            }
+            
+            var inputs = document.querySelectorAll('.quiz-input');
+            for (i = 0; i < inputs.length; i++) {
+                inputs[i].value = '';
+                inputs[i].disabled = false;
+            }
+            
+            var results = document.querySelectorAll('.quiz-result');
+            for (i = 0; i < results.length; i++) {
+                results[i].classList.remove('show');
+            }
+            
+            quizScore = 0;
+        }
+
+        function confirmLeaveQuiz() {
+            quizStarted = false;
+            quizScore = 0;
+            closeModal();
+            
+            var options = document.querySelectorAll('.quiz-option');
+            var i;
+            for (i = 0; i < options.length; i++) {
+                options[i].classList.remove('correct', 'wrong', 'selected');
+                options[i].style.pointerEvents = 'auto';
+            }
+            
+            var inputs = document.querySelectorAll('.quiz-input');
+            for (i = 0; i < inputs.length; i++) {
+                inputs[i].value = '';
+                inputs[i].disabled = false;
+            }
+            
+            var results = document.querySelectorAll('.quiz-result');
+            for (i = 0; i < results.length; i++) {
+                results[i].classList.remove('show');
+            }
+            
+            if (pendingSection) {
+                showSection(pendingSection);
+                pendingSection = '';
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('show');
+            pendingSection = '';
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- QUIZ -->
+    <section id="quiz" class="section">
+        <div class="quiz-section">
+            <div class="quiz-container">
+                <div class="section-header">
+                    <h2>Interaktives Quiz</h2>
+                    <p>Teste dein Wissen ueber Gottfried Keller und das Abendlied</p>
+                </div>
+
+                <div class="nickname-input" id="nickname-section">
+                    <h3>Willkommen zum Quiz!</h3>
+                    <p style="margin-bottom: 1.5rem; color: var(--accent);">Gib deinen Nickname ein, um zu starten:</p>
+                    <input type="text" id="nickname" placeholder="Dein Nickname..." maxlength="20">
+                    <button class="quiz-btn" onclick="startQuiz()">Quiz starten</button>
+                </div>
+
+                <div id="quiz-content" style="display: none;">
+                    <div class="quiz-card" id="q1">
+                        <h3>Frage 1 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Wann wurde Gottfried Keller geboren?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q1')">1815</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q1')">1819</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q1')">1820</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q1')">1825</div>
+                        </div>
+                        <div class="quiz-result" id="result-q1"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q2">
+                        <h3>Frage 2 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Welches Werk ist KEIN Werk von Gottfried Keller?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q2')">Der gruene Heinrich</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q2')">Die Leute von Seldwyla</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q2')">Faust</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q2')">Zuercher Novellen</div>
+                        </div>
+                        <div class="quiz-result" id="result-q2"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q3">
+                        <h3>Frage 3 (Texteingabe)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">In welchem Jahr wurde Abendlied veroeffentlicht?</p>
+                        <input type="text" class="quiz-input" id="input-q3" placeholder="Deine Antwort...">
+                        <button class="quiz-btn" onclick="checkTextAnswer('q3', '1879')">Pruefen</button>
+                        <div class="quiz-result" id="result-q3"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q4">
+                        <h3>Frage 4 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Wie viele Strophen hat das Gedicht Abendlied?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q4')">2</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q4')">3</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q4')">4</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q4')">5</div>
+                        </div>
+                        <div class="quiz-result" id="result-q4"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q5">
+                        <h3>Frage 5 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Welches Reimschema weist das Gedicht auf?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q5')">Kreuzreim (abab)</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q5')">Haufenreim (aaaa)</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q5')">Paarreim (aabb)</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q5')">Umarmender Reim (abba)</div>
+                        </div>
+                        <div class="quiz-result" id="result-q5"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q6">
+                        <h3>Frage 6 (Texteingabe)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Welches Metrum hat das Gedicht? (z.B. vierhebiger Jambus)</p>
+                        <input type="text" class="quiz-input" id="input-q6" placeholder="Deine Antwort...">
+                        <button class="quiz-btn" onclick="checkTextAnswer('q6', 'vierhebiger Jambus')">Pruefen</button>
+                        <div class="quiz-result" id="result-q6"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q7">
+                        <h3>Frage 7 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Was bedeutet das Diminutiv Fensterlein in der ersten Strophe?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q7')">Kleine Fenster im Haus</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q7')">Die Augen als Fenster zur Seele/Wahrnehmung</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q7')">Brillenglaeser</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q7')">Ein Gemaelde</div>
+                        </div>
+                        <div class="quiz-result" id="result-q7"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q8">
+                        <h3>Frage 8 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Was symbolisiert der Wanderschuh in der zweiten Strophe?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q8')">Eine Wanderung in den Bergen</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q8')">Das irdische Leben als Wanderung</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q8')">Kellers Zeit als Maler</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q8')">Die Reise nach Berlin</div>
+                        </div>
+                        <div class="quiz-result" id="result-q8"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q9">
+                        <h3>Frage 9 (Texteingabe)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Wie viele Silben hat jeder Vers im Abendlied?</p>
+                        <input type="text" class="quiz-input" id="input-q9" placeholder="Deine Antwort...">
+                        <button class="quiz-btn" onclick="checkTextAnswer('q9', '9')">Pruefen</button>
+                        <div class="quiz-result" id="result-q9"></div>
+                    </div>
+
+                    <div class="quiz-card" id="q10">
+                        <h3>Frage 10 (Multiple Choice)</h3>
+                        <p style="margin-bottom: 1rem; font-size: 1.1rem;">Welche Epoche wird dem Gedicht zugeordnet?</p>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q10')">Romantik</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, true, 'q10')">Realismus (mit romantischen Elementen)</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q10')">Expressionismus</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, false, 'q10')">Klassik</div>
+                        </div>
+                        <div class="quiz-result" id="result-q10"></div>
+                    </div>
+
+                    <div style="text-align: center; margin-top: 3rem;">
+                        <button class="quiz-btn" onclick="finishQuiz()" style="font-size: 1.3rem; padding: 15px 40px;">Quiz beenden & Ergebnis anzeigen</button>
+                    </div>
+                </div>
+
+                <div class="leaderboard" id="leaderboard" style="display: none;">
+                    <h3>Rangliste</h3>
+                    <div id="leaderboard-content"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SCHLUSS -->
+    <section id="schluss" class="section">
+        <div class="farewell-section">
+            <div class="farewell-content">
+                <h2>Zusammenfassung</h2>
+                <p>
+                    Gottfried Keller war einer der bedeutendsten deutschsprachigen Autoren des 19. Jahrhunderts. 
+                    Sein Leben war gepraegt von wirtschaftlicher Not, kuenstlerischem Scheitern und schliesslich 
+                    literarischem Ruhm. Als Staatsschreiber von Zuerich fand er die finanzielle Sicherheit, 
+                    die ihm ermoeglichte, als freier Schriftsteller zu arbeiten.
+                </p>
+                <p>
+                    Sein Gedicht <strong>Abendlied</strong> (1879) zeigt die Reife eines Dichters, der den Tod 
+                    nicht fuerchtet, sondern als natuerlichen Teil des Lebens akzeptiert. Die Verbindung von 
+                    Vergaenglichkeitsbewusstsein und Lebensbejahung macht das Gedicht zu einem zeitlosen 
+                    Meisterwerk der deutschen Lyrik.
+                </p>
+                <div class="farewell-quote">
+                    Trinkt, o Augen, was die Wimper haelt,<br>
+                    Von dem goldnen Ueberfluss der Welt!
+                </div>
+                <button class="farewell-btn" onclick="showSection('start')">Zurueck zum Anfang</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- MODAL -->
+    <div class="modal-overlay" id="modal">
+        <div class="modal">
+            <h3>Quiz verlassen?</h3>
+            <p>Bist du sicher, dass du das Quiz verlassen moechtest? Dein Fortschritt wird geloescht!</p>
+            <div class="modal-buttons">
+                <button class="modal-btn yes" onclick="confirmLeaveQuiz()">Ja, verlassen</button>
+                <button class="modal-btn no" onclick="closeModal()">Nein, bleiben</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Gottfried Keller - Leben, Schaffen & Lyrik | Von Maurice Friese und Tom Gruss</p>
+        <p style="margin-top: 0.5rem; font-size: 0.85rem;">Quellen: Gottfried Keller-Gesellschaft, Abipur.de</p>
+    </footer>
+
+    <script>
+        var currentNickname = '';
+        var quizScore = 0;
+        var quizStarted = false;
+        var pendingSection = '';
+        var leaderboardData = JSON.parse(localStorage.getItem('kellerQuizLeaderboard')) || [];
+
+        function showSection(sectionId) {
+            if (quizStarted && sectionId !== 'quiz') {
+                pendingSection = sectionId;
+                document.getElementById('modal').classList.add('show');
+                return;
+            }
+
+            var sections = document.querySelectorAll('.section');
+            var i;
+            for (i = 0; i < sections.length; i++) {
+                sections[i].classList.remove('active');
+            }
+            
+            var targetSection = document.getElementById(sectionId);
+            if (targetSection) targetSection.classList.add('active');
+            
+            var navLinks = document.querySelectorAll('.nav-link');
+            for (i = 0; i < navLinks.length; i++) {
+                navLinks[i].classList.remove('active');
+            }
+            
+            var allLinks = document.querySelectorAll('.nav-link');
+            for (i = 0; i < allLinks.length; i++) {
+                var onclickAttr = allLinks[i].getAttribute('onclick');
+                if (onclickAttr && onclickAttr.indexOf("'" + sectionId + "'") !== -1) {
+                    allLinks[i].classList.add('active');
+                    break;
+                }
+            }
+            
+            window.scrollTo(0, 0);
+        }
+
+        function highlightStanza(num) {
+            clearHighlight();
+            
+            var stanzas = document.querySelectorAll('.poem-stanza[data-stanza="' + num + '"]');
+            var i;
+            for (i = 0; i < stanzas.length; i++) {
+                stanzas[i].classList.add('active');
+            }
+            
+            var cardMap = {
+                1: 'card-strophe1',
+                2: 'card-strophe2', 
+                3: 'card-strophe3',
+                4: 'card-strophe4'
+            };
+            
+            var cardId = cardMap[num];
+            if (cardId) {
+                var card = document.getElementById(cardId);
+                if (card) {
+                    card.classList.add('highlighted');
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }
+
+        function clearHighlight() {
+            var stanzas = document.querySelectorAll('.poem-stanza');
+            var i;
+            for (i = 0; i < stanzas.length; i++) {
+                stanzas[i].classList.remove('active');
+            }
+            var cards = document.querySelectorAll('.analysis-card');
+            for (i = 0; i < cards.length; i++) {
+                cards[i].classList.remove('highlighted');
+            }
+        }
+
+        function startQuiz() {
+            var nickname = document.getElementById('nickname').value.trim();
+            if (!nickname) {
+                alert('Bitte gib einen Nickname ein!');
+                return;
+            }
+            currentNickname = nickname;
+            quizStarted = true;
+            quizScore = 0;
+            document.getElementById('nickname-section').style.display = 'none';
+            document.getElementById('quiz-content').style.display = 'block';
+            document.getElementById('leaderboard').style.display = 'none';
+        }
+
+        function checkAnswer(element, isCorrect, questionId) {
+            var card = element.closest('.quiz-card');
+            var options = card.querySelectorAll('.quiz-option');
+            var result = document.getElementById('result-' + questionId);
+            var j;
+            
+            for (j = 0; j < options.length; j++) {
+                options[j].style.pointerEvents = 'none';
+            }
+            
+            if (isCorrect) {
+                element.classList.add('correct');
+                result.textContent = 'Richtig! +1 Punkt';
+                result.className = 'quiz-result show correct';
+                quizScore++;
+            } else {
+                element.classList.add('wrong');
+                result.textContent = 'Falsch! Die richtige Antwort war eine andere.';
+                result.className = 'quiz-result show wrong';
+                
+                for (j = 0; j < options.length; j++) {
+                    var onclickStr = options[j].getAttribute('onclick') || '';
+                    if (onclickStr.indexOf('true') !== -1) {
+                        options[j].classList.add('correct');
+                    }
+                }
+            }
+        }
+
+        function checkTextAnswer(questionId, correctAnswer) {
+            var input = document.getElementById('input-' + questionId);
+            var result = document.getElementById('result-' + questionId);
+            var userAnswer = input.value.trim().toLowerCase();
+            
+            if (!userAnswer) {
+                alert('Bitte gib eine Antwort ein!');
+                return;
+            }
+            
+            input.disabled = true;
+            
+            var isCorrect = false;
+            if (userAnswer === correctAnswer.toLowerCase()) {
+                isCorrect = true;
+            } else if (questionId === 'q6' && userAnswer.indexOf('jambus') !== -1) {
+                isCorrect = true;
+            } else if (questionId === 'q9' && userAnswer === '9') {
+                isCorrect = true;
+            }
+            
+            if (isCorrect) {
+                result.textContent = 'Richtig! +1 Punkt';
+                result.className = 'quiz-result show correct';
+                quizScore++;
+            } else {
+                result.textContent = 'Falsch! Die richtige Antwort war: ' + correctAnswer;
+                result.className = 'quiz-result show wrong';
+            }
+        }
+
+        function finishQuiz() {
+            quizStarted = false;
+            
+            var entry = {
+                name: currentNickname,
+                score: quizScore,
+                date: new Date().toLocaleDateString('de-DE')
+            };
+            
+            leaderboardData.push(entry);
+            leaderboardData.sort(function(a, b) { return b.score - a.score; });
+            leaderboardData = leaderboardData.slice(0, 10);
+            
+            localStorage.setItem('kellerQuizLeaderboard', JSON.stringify(leaderboardData));
+            
+            document.getElementById('quiz-content').style.display = 'none';
+            document.getElementById('leaderboard').style.display = 'block';
+            
+            var content = document.getElementById('leaderboard-content');
+            content.innerHTML = '<div style="text-align: center; margin-bottom: 2rem; padding: 1.5rem; background: var(--highlight); border-radius: 10px;">' +
+                '<h4 style="font-size: 1.5rem; color: var(--dark); margin-bottom: 0.5rem;">Dein Ergebnis: ' + quizScore + ' / 10 Punkte</h4>' +
+                '<p style="color: var(--accent);">' + currentNickname + '</p>' +
+                '</div>';
+            
+            var index;
+            for (index = 0; index < leaderboardData.length; index++) {
+                var div = document.createElement('div');
+                div.className = 'leaderboard-item';
+                div.innerHTML = '<div style="display: flex; align-items: center; gap: 1rem;">' +
+                    '<span class="leaderboard-rank">#' + (index + 1) + '</span>' +
+                    '<span>' + leaderboardData[index].name + '</span>' +
+                    '</div>' +
+                    '<div style="display: flex; align-items: center; gap: 1rem;">' +
+                    '<span style="font-weight: 700; color: var(--gold);">' + leaderboardData[index].score + ' Punkte</span>' +
+                    '<span style="color: var(--accent); font-size: 0.9rem;">' + leaderboardData[index].date + '</span>' +
+                    '</div>';
+                content.appendChild(div);
+            }
+            
+            var restartBtn = document.createElement('div');
+            restartBtn.style.textAlign = 'center';
+            restartBtn.style.marginTop = '2rem';
+            restartBtn.innerHTML = '<button class="quiz-btn" onclick="resetQuiz()">Neu starten</button>';
+            content.appendChild(restartBtn);
+        }
+
+        function resetQuiz() {
+            document.getElementById('nickname-section').style.display = 'block';
+            document.getElementById('quiz-content').style.display = 'none';
+            document.getElementById('leaderboard').style.display = 'none';
+            document.getElementById('nickname').value = '';
+            
+            var options = document.querySelectorAll('.quiz-option');
+            var i;
+            for (i = 0; i < options.length; i++) {
+                options[i].classList.remove('correct', 'wrong', 'selected');
+                options[i].style.pointerEvents = 'auto';
+            }
+            
+            var inputs = document.querySelectorAll('.quiz-input');
+            for (i = 0; i < inputs.length; i++) {
+                inputs[i].value = '';
+                inputs[i].disabled = false;
+            }
+            
+            var results = document.querySelectorAll('.quiz-result');
+            for (i = 0; i < results.length; i++) {
+                results[i].classList.remove('show');
+            }
+            
+            quizScore = 0;
+        }
+
+        function confirmLeaveQuiz() {
+            quizStarted = false;
+            quizScore = 0;
+            closeModal();
+            
+            var options = document.querySelectorAll('.quiz-option');
+            var i;
+            for (i = 0; i < options.length; i++) {
+                options[i].classList.remove('correct', 'wrong', 'selected');
+                options[i].style.pointerEvents = 'auto';
+            }
+            
+            var inputs = document.querySelectorAll('.quiz-input');
+            for (i = 0; i < inputs.length; i++) {
+                inputs[i].value = '';
+                inputs[i].disabled = false;
+            }
+            
+            var results = document.querySelectorAll('.quiz-result');
+            for (i = 0; i < results.length; i++) {
+                results[i].classList.remove('show');
+            }
+            
+            if (pendingSection) {
+                showSection(pendingSection);
+                pendingSection = '';
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('show');
+            pendingSection = '';
+        }
+    </script>
+</body>
+</html>
+
+
+
